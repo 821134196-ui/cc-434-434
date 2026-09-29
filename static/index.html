@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>活鲜暂养与损耗结算平台</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">🦞</span>
+    <div>
+      <h1>活鲜暂养与损耗结算平台</h1>
+      <p class="subtitle">海鲜档口 · 水槽暂养 · 批次称重 · 供应商对账</p>
+    </div>
+  </div>
+  <div class="userbox">
+    <label>当前用户</label>
+    <select id="userSelect"></select>
+    <span id="userRole" class="role-badge"></span>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="dashboard" class="active">水槽看板</button>
+  <button data-tab="entry">批次入池</button>
+  <button data-tab="holding">暂养记录</button>
+  <button data-tab="orders">订单分拣</button>
+  <button data-tab="loss">损耗处置</button>
+  <button data-tab="settlement">供应商对账</button>
+</nav>
+
+<main>
+  <!-- ============ 水槽看板 ============ -->
+  <section id="tab-dashboard" class="tab active">
+    <!-- 异常水槽固定警示位:始终钉在看板顶部 -->
+    <div id="warnStrip" class="warn-strip hidden"></div>
+    <div class="section-head">
+      <h2>水槽看板</h2>
+      <div>
+        <button class="btn ghost" id="btnPatrol">立即巡检</button>
+        <button class="btn ghost" id="btnInject">模拟水温异常</button>
+      </div>
+    </div>
+    <div id="zones"></div>
+  </section>
+
+  <!-- ============ 批次入池 ============ -->
+  <section id="tab-entry" class="tab">
+    <div class="section-head"><h2>批次入池</h2></div>
+    <form id="entryForm" class="card form-grid">
+      <label>品种<select name="species_id" required></select></label>
+      <label>规格<input name="spec" placeholder="如 500g/只" required></label>
+      <label>供应商<select name="supplier_id" required></select></label>
+      <label>来源批次<input name="source_batch_no" placeholder="如 HF-20260929-01" required></label>
+      <label>水槽<select name="tank_id" required></select></label>
+      <label>入池重量(kg)
+        <div class="scale-row">
+          <input name="weight" type="number" step="0.01" min="0.01" required>
+          <button type="button" class="btn ghost" id="btnScale">读取电子秤</button>
+        </div>
+      </label>
+      <input type="hidden" name="device_id">
+      <input type="hidden" name="idem_key">
+      <div class="form-actions">
+        <button class="btn primary" type="submit">确认入池</button>
+        <span class="hint">容量、盐度、混养冲突将自动校验;重复提交同一秤单自动去重</span>
+      </div>
+    </form>
+    <div class="card">
+      <h3>在养批次</h3>
+      <table class="tbl" id="batchTable">
+        <thead><tr>
+          <th>批次号</th><th>品种</th><th>规格</th><th>水槽</th><th>供应商</th>
+          <th>入池重量</th><th>当前余量</th><th>损耗</th><th>状态</th><th>操作</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 暂养记录 ============ -->
+  <section id="tab-holding" class="tab">
+    <div class="section-head">
+      <h2>暂养记录</h2>
+      <select id="holdingTankFilter"><option value="">全部水槽</option></select>
+    </div>
+    <div class="card">
+      <table class="tbl" id="holdingTable">
+        <thead><tr>
+          <th>时间</th><th>水槽</th><th>水温(°C)</th><th>盐度(‰)</th>
+          <th>溶氧(mg/L)</th><th>备注</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 订单分拣 ============ -->
+  <section id="tab-orders" class="tab">
+    <div class="section-head"><h2>订单分拣</h2></div>
+    <form id="orderForm" class="card form-grid">
+      <label>客户<select name="customer_id" required></select></label>
+      <label>品种<select name="species_id" required></select></label>
+      <label>规格<input name="spec" placeholder="如 500g/只" required></label>
+      <label>数量(kg)<input name="qty" type="number" step="0.5" min="0.5" required></label>
+      <div class="form-actions"><button class="btn primary" type="submit">创建订单</button></div>
+    </form>
+    <div id="orderList"></div>
+  </section>
+
+  <!-- ============ 损耗处置 ============ -->
+  <section id="tab-loss" class="tab">
+    <div class="section-head"><h2>损耗处置</h2></div>
+    <form id="lossForm" class="card form-grid">
+      <label>原批次<select name="batch_id" required></select></label>
+      <label>数量(kg)<input name="qty" type="number" step="0.1" min="0.1" required></label>
+      <label>原因
+        <select name="reason">
+          <option>死亡</option><option>缺氧死亡</option><option>机械损伤</option>
+          <option>病害</option><option>逃逸</option><option>其他损耗</option>
+        </select>
+      </label>
+      <label>备注<input name="note" placeholder="选填"></label>
+      <div class="form-actions">
+        <button class="btn danger" type="submit">登记报损</button>
+        <span class="hint">报损必须关联原批次;损耗率超 8% 自动告警</span>
+      </div>
+    </form>
+    <div class="card">
+      <h3>损耗记录 ↔ 原批次</h3>
+      <div class="loss-map" id="lossMap">
+        <svg id="lossLines"></svg>
+        <div class="loss-col" id="lossCol"></div>
+        <div class="loss-col" id="batchCol"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 供应商对账 ============ -->
+  <section id="tab-settlement" class="tab">
+    <div class="section-head">
+      <h2>供应商对账</h2>
+      <span class="hint" id="settleScope"></span>
+    </div>
+    <div class="card" id="diffCard">
+      <h3>待确认差异 <span class="badge tomato" id="diffCount"></span></h3>
+      <table class="tbl" id="diffTable">
+        <thead><tr>
+          <th>批次</th><th>类型</th><th>账面重量</th><th>补录重量</th>
+          <th>差异</th><th>操作</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h3>结算单</h3>
+      <table class="tbl" id="settleTable">
+        <thead><tr>
+          <th>单号</th><th>批次</th><th>供应商</th><th>入池重量</th><th>损耗</th>
+          <th>结算重量</th><th>单价</th><th>金额(元)</th><th>状态</th><th>操作</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast hidden"></div>
+<script src="/app.js"></script>
+</body>
+</html>
