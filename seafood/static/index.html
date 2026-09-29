@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>海旺水产 · 活鲜暂养与损耗结算平台</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>🦀 海旺水产 · 活鲜暂养结算台</h1>
+  <nav class="tabs" id="tabs">
+    <button data-view="board" class="active">水槽看板</button>
+    <button data-view="intake">批次入池</button>
+    <button data-view="holding">暂养记录</button>
+    <button data-view="orders">订单分拣</button>
+    <button data-view="losses">损耗处置</button>
+    <button data-view="settle">供应商对账</button>
+  </nav>
+  <button class="alert-bell" id="bell">⚠ 异常警示<span class="dot" id="alertCount">0</span></button>
+</header>
+
+<main>
+<!-- 固定警示位：任何页签下异常水槽都钉在顶部 -->
+<div class="alarm-dock hidden" id="alarmDock">
+  <div class="dock-head">🚨 异常警示位（水温 / 缺氧 / 混养 / 称重差异 / 超死亡率）</div>
+  <div class="dock-body" id="alarmChips"></div>
+</div>
+
+<!-- 1. 水槽看板 -->
+<section class="view active" id="view-board">
+  <div id="zones"></div>
+</section>
+
+<!-- 2. 批次入池 -->
+<section class="view" id="view-intake">
+  <div class="panel">
+    <h2>入池称重（容量 / 盐度 / 混养自动校验）</h2>
+    <form id="intakeForm" class="form-grid">
+      <label class="fld">品种<select name="species_id" id="inSpecies"></select></label>
+      <label class="fld">规格<input name="spec" placeholder="留空用默认规格"></label>
+      <label class="fld">来源批次号<input name="source_batch_no" placeholder="SRC-XXX-001" required></label>
+      <label class="fld">供应商<select name="supplier_id" id="inSupplier"></select></label>
+      <label class="fld">重量 kg（电子秤）<input name="weight_kg" type="number" step="0.01" min="0.1" required></label>
+      <label class="fld">入池水槽<select name="tank_id" id="inTank"></select></label>
+      <label class="fld">设备编号<input name="device_id" value="SCALE-WEB"></label>
+      <label class="fld">操作员<input name="operator" value="老周（仓管）"></label>
+      <div style="align-self:end"><button class="btn" type="submit">确认入池</button></div>
+    </form>
+  </div>
+  <div class="panel">
+    <h2>在池 / 历史批次</h2>
+    <table id="batchTable"><thead><tr>
+      <th>池内批次</th><th>来源批次</th><th>品种/规格</th><th>供应商</th><th>水槽</th>
+      <th>入池重量</th><th>锁定</th><th>已分拣</th><th>损耗</th><th>死亡率</th><th>状态</th><th>补录称重</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+</section>
+
+<!-- 3. 暂养记录 -->
+<section class="view" id="view-holding">
+  <div class="panel">
+    <h2>设备探头（本地适配器模拟 · 演示注入）</h2>
+    <div class="form-grid">
+      <label class="fld">水槽<select id="scTank"></select></label>
+      <label class="fld">模拟工况
+        <select id="scMode"><option value="normal">正常</option>
+        <option value="heat">水温异常（升温）</option><option value="low_oxygen">缺氧</option></select>
+      </label>
+      <div style="align-self:end"><button class="btn tomato" id="scApply">注入工况并立即采样</button></div>
+    </div>
+    <p class="muted" style="margin-top:8px">后台进程每 5 秒采样一次；注入后保持在顶部「异常警示位」，直到人工确认。</p>
+  </div>
+  <div class="panel">
+    <h2>水温 / 溶氧暂养记录</h2>
+    <table id="holdingTable"><thead><tr><th>时间</th><th>水槽</th><th>水温℃</th><th>溶氧 mg/L</th></tr></thead><tbody></tbody></table>
+  </div>
+</section>
+
+<!-- 4. 订单分拣 -->
+<section class="view" id="view-orders">
+  <div class="panel">
+    <h2>订单分拣锁定（同批次并发仅一单成功）</h2>
+    <form id="orderForm">
+      <div class="form-grid">
+        <label class="fld">客户<select name="customer_id" id="oCustomer"></select></label>
+        <label class="fld">分拣员工<select name="employee_id" id="oEmployee"></select></label>
+      </div>
+      <table style="margin:12px 0" id="itemPicker"><thead><tr>
+        <th>在池批次</th><th>可锁余量 kg</th><th>本次分拣 kg</th></tr></thead><tbody></tbody></table>
+      <button class="btn" type="submit">锁定并创建订单</button>
+      <button class="btn ghost" type="button" id="simConcurrent">⚡ 模拟两员工同时抢同一批次</button>
+    </form>
+  </div>
+  <div class="panel">
+    <h2>订单列表</h2>
+    <div id="orderList"></div>
+  </div>
+</section>
+
+<!-- 5. 损耗处置 -->
+<section class="view" id="view-losses">
+  <div class="panel">
+    <h2>死亡 / 损耗报损（必须关联原批次）</h2>
+    <form id="lossForm" class="form-grid">
+      <label class="fld">原批次<select name="batch_id" id="lBatch"></select></label>
+      <label class="fld">损耗重量 kg<input name="qty_kg" type="number" step="0.1" min="0.1" required></label>
+      <label class="fld">原因<select name="reason">
+        <option>死亡</option><option>缺氧</option><option>逃逸</option><option>失重</option></select></label>
+      <label class="fld">操作员<input name="operator" value="老周（仓管）"></label>
+      <div style="align-self:end"><button class="btn tomato" type="submit">确认报损</button></div>
+    </form>
+  </div>
+  <div class="panel">
+    <h2>损耗 ↔ 原批次 关联图</h2>
+    <div class="relation-wrap" id="relationWrap">
+      <svg class="relation-svg" id="relationSvg"></svg>
+      <div class="relation-cols">
+        <div class="rcol"><h4>原批次</h4><div id="relBatches"></div></div>
+        <div class="rcol"><h4>死亡 / 损耗记录</h4><div id="relLosses"></div></div>
+      </div>
+    </div>
+    <table id="lossTable"><thead><tr><th>时间</th><th>损耗单号</th><th>原批次</th><th>来源批次</th>
+      <th>品种</th><th>水槽</th><th>重量 kg</th><th>原因</th><th>操作员</th></tr></thead><tbody></tbody></table>
+  </div>
+</section>
+
+<!-- 6. 供应商对账 -->
+<section class="view" id="view-settle">
+  <div class="panel">
+    <h2>来源批次结算（已结算批次重量锁定，不可再补录）</h2>
+    <div id="sourceList"></div>
+  </div>
+  <div class="panel">
+    <h2>称重差异挂账（供应商确认前不改动账）</h2>
+    <div class="form-grid" style="margin-bottom:10px">
+      <label class="fld">供应商凭证 token（演示）
+        <select id="diffToken"><option value="sup_lin_token">林记海鲜批发 · sup_lin_token</option>
+        <option value="sup_donggang_token">东港渔业合作社 · sup_donggang_token</option>
+        <option value="sup_chen_token">陈记活鲜 · sup_chen_token</option></select></label>
+    </div>
+    <div id="diffList"></div>
+  </div>
+  <div class="panel">
+    <h2>结算单</h2>
+    <div class="form-grid" style="margin-bottom:10px">
+      <label class="fld">供应商凭证 token（演示）
+        <select id="settleToken"><option value="sup_lin_token">林记海鲜批发 · sup_lin_token</option>
+        <option value="sup_donggang_token">东港渔业合作社 · sup_donggang_token</option>
+        <option value="sup_chen_token">陈记活鲜 · sup_chen_token</option></select></label>
+    </div>
+    <div id="settleList"></div>
+  </div>
+</section>
+</main>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
